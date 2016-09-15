@@ -79,7 +79,7 @@ trait WhiskServices {
     /** A load balancing service that launches invocations */
     protected val loadBalancer: LoadBalancerService
 
-    /** Synchronously perform a request to the load balancer.  */
+    /** Perform a request to the load balancer.  */
     protected val performLoadBalancerRequest: (ActivationMessage, TransactionId) => Future[Unit]
 
     /** Ask load balancer (instead of db) for activation response */
