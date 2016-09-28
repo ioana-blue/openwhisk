@@ -208,6 +208,7 @@ protected[controller] class RestAPIVersion_v1(
         extends WhiskActionsApi with WhiskServices {
         override val whiskConfig = config
         setVerbosity(verbosity)
+        info(this, s"actionSequenceLimit '${config.actionSequenceLimit}'")
         assert(config.actionSequenceLimit.toInt > 0)
     }
 
