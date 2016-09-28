@@ -20,14 +20,7 @@ import java.util.Base64
 
 import scala.language.postfixOps
 
-import spray.json.DefaultJsonProtocol
-import spray.json.DeserializationException
-import spray.json.JsonFormat
-import spray.json.JsArray
-import spray.json.JsObject
-import spray.json.JsString
-import spray.json.JsValue
-import spray.json.RootJsonFormat
+import spray.json._
 import whisk.core.entity.ArgNormalizer.trim
 import whisk.core.entity.Attachments._
 import whisk.core.entity.size.SizeInt
@@ -127,7 +120,7 @@ protected[core] object Exec
     protected[core] def swift(code: String): Exec = SwiftExec(trim(code))
     protected[core] def swift3(code: String): Exec = Swift3Exec(trim(code))
     protected[core] def java(jar: String, main: String): Exec = JavaExec(Inline(trim(jar)), trim(main))
-    protected[core] def sequence(components: Vector[String]): Exec = SequenceExec(Pipecode.code, components map {c => FullyQualifiedEntityName(c) } )
+    protected[core] def sequence(components: Vector[FullyQualifiedEntityName]): Exec = SequenceExec(Pipecode.code, components)
 
     private def attFmt[T: JsonFormat] = Attachments.serdes[T]
 
@@ -135,7 +128,7 @@ protected[core] object Exec
         override def write(e: Exec) = e match {
             case NodeJSExec(code, None)        => JsObject("kind" -> JsString(Exec.NODEJS), "code" -> JsString(code))
             case NodeJSExec(code, Some(init))  => JsObject("kind" -> JsString(Exec.NODEJS), "code" -> JsString(code), "init" -> JsString(init))
-            case SequenceExec(code, comp)      => JsObject("kind" -> JsString(Exec.SEQUENCE), "code" -> JsString(code), "components" -> JsArray(comp map { c => JsString(c.toString) }))
+            case SequenceExec(code, comp)      => JsObject("kind" -> JsString(Exec.SEQUENCE), "code" -> JsString(code), "components" -> comp.toJson)
             case NodeJS6Exec(code, None)       => JsObject("kind" -> JsString(Exec.NODEJS6), "code" -> JsString(code))
             case NodeJS6Exec(code, Some(init)) => JsObject("kind" -> JsString(Exec.NODEJS6), "code" -> JsString(code), "init" -> JsString(init))
             case PythonExec(code)              => JsObject("kind" -> JsString(Exec.PYTHON), "code" -> JsString(code))
@@ -172,15 +165,9 @@ protected[core] object Exec
                     NodeJSExec(code, init)
                 case Exec.SEQUENCE =>
                     val comp: Vector[FullyQualifiedEntityName] = obj.getFields("components") match {
-                        case Seq(JsArray(components)) =>
-                            components map {
-                                _ match {
-                                    case JsString(s) => FullyQualifiedEntityName(s)
-                                    case _           => throw new DeserializationException(s"'components' must be an array of strings")
-                                }
-                            }
-                        case Seq(_) => throw new DeserializationException(s"'components' must be an array")
-                        case _      => throw new DeserializationException(s"'components' must be defined for sequence kind")
+                        case Seq(JsArray(components)) => components map { FullyQualifiedEntityName.serdes.read(_) }
+                        case Seq(_)                   => throw new DeserializationException(s"'components' must be an array")
+                        case _                        => throw new DeserializationException(s"'components' must be defined for sequence kind")
                     }
                     SequenceExec(Pipecode.code, comp)
 

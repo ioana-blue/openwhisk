@@ -19,6 +19,7 @@ package whisk.core.controller.test
 import scala.concurrent.Await
 import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.FiniteDuration
 import scala.language.postfixOps
 
 import org.scalatest.BeforeAndAfter
@@ -28,6 +29,7 @@ import org.scalatest.Matchers
 
 import akka.event.Logging.InfoLevel
 import spray.http.BasicHttpCredentials
+import spray.json.JsString
 import spray.routing.HttpService
 import spray.testkit.ScalatestRouteTest
 import whisk.common.Logging
@@ -46,6 +48,7 @@ import whisk.core.entity.ActivationId.ActivationIdGenerator
 import whisk.core.entity.AuthKey
 import whisk.core.entity.DocId
 import whisk.core.entity.EntityName
+import whisk.core.entity.FullyQualifiedEntityName
 import whisk.core.entity.Subject
 import whisk.core.entity.WhiskAction
 import whisk.core.entity.WhiskActivation
@@ -58,6 +61,7 @@ import whisk.core.entity.WhiskRule
 import whisk.core.entity.WhiskTrigger
 import whisk.core.loadBalancer.LoadBalancerService
 import scala.concurrent.duration.FiniteDuration
+
 
 protected trait ControllerTestCommon
     extends FlatSpec
@@ -155,6 +159,8 @@ protected trait ControllerTestCommon
             WhiskPackage.del(entityStore, doc.docinfo)
         }, dbOpTimeout)
     }
+
+    def stringToFullyQualifiedName(s: String) = FullyQualifiedEntityName.serdes.read(JsString(s))
 
     object MakeName {
         @volatile var counter = 1
