@@ -89,9 +89,7 @@ object WhiskActionsApi {
     def requiredProperties = WhiskServices.requiredProperties ++
         WhiskEntityStore.requiredProperties ++
         WhiskActivationStore.requiredProperties ++
-        Map(WhiskConfig.actionSequenceLimit -> null)
-
-        val sequenceHackFlag = true   // a temporary flag that disables the old hack that runs sequences using Pipe.js
+        Map(WhiskConfig.actionSequenceDefaultLimit -> null)
 }
 
 /** A trait implementing the actions API. */
@@ -668,7 +666,7 @@ trait WhiskActionsApi extends WhiskCollectionAPI {
         // traverse all actions and "inline" all actions that are sequences
         // keep track of all sequences to detect recursion
         // first check that out of the box no more components than necessary
-        val future = if (components.size > whiskConfig.actionSequenceLimit.toInt) {
+        val future = if (components.size > actionSequenceLimit) {
             Future.failed(new TooManyActionsInSequence())
         } else {
             val resolvedSequence = WhiskAction.resolveAction(entityStore, sequence) // this assumes that entityStore is the same for actions and packages
@@ -701,7 +699,7 @@ trait WhiskActionsApi extends WhiskCollectionAPI {
      */
     private def inlineComponentsAndCountAtomicActions(atomicActionsCnt: Int, actionsToInline: List[FullyQualifiedEntityName], sequences: List[FullyQualifiedEntityName])(
         implicit transid: TransactionId): Future[Boolean] = {
-        if (atomicActionsCnt > whiskConfig.actionSequenceLimit.toInt)
+        if (atomicActionsCnt > actionSequenceLimit)
             Future.failed(new TooManyActionsInSequence())
         else {
             actionsToInline match {
@@ -746,6 +744,8 @@ trait WhiskActionsApi extends WhiskCollectionAPI {
 
     /** Max duration to wait for a blocking activation. */
     private val maxWaitForBlockingActivation = 60 seconds
+
+    private lazy val actionSequenceLimit = whiskConfig.actionSequenceLimit.toInt
 }
 
 private case class BlockingInvokeTimeout(activationId: ActivationId) extends TimeoutException
