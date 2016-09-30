@@ -128,7 +128,7 @@ protected[core] object Exec
         override def write(e: Exec) = e match {
             case NodeJSExec(code, None)        => JsObject("kind" -> JsString(Exec.NODEJS), "code" -> JsString(code))
             case NodeJSExec(code, Some(init))  => JsObject("kind" -> JsString(Exec.NODEJS), "code" -> JsString(code), "init" -> JsString(init))
-            case SequenceExec(code, comp)      => JsObject("kind" -> JsString(Exec.SEQUENCE), "code" -> JsString(code), "components" -> comp.toJson)
+            case SequenceExec(code, comp)      => JsObject("kind" -> JsString(Exec.SEQUENCE), "code" -> JsString(code), "components" -> comp.map(_.qualifiedNameWithLeadingSlash).toJson)
             case NodeJS6Exec(code, None)       => JsObject("kind" -> JsString(Exec.NODEJS6), "code" -> JsString(code))
             case NodeJS6Exec(code, Some(init)) => JsObject("kind" -> JsString(Exec.NODEJS6), "code" -> JsString(code), "init" -> JsString(init))
             case PythonExec(code)              => JsObject("kind" -> JsString(Exec.PYTHON), "code" -> JsString(code))
