@@ -160,7 +160,7 @@ trait WhiskActionsApi extends WhiskCollectionAPI {
                         val packageDocId = DocId(WhiskEntity.qualifiedName(ns, EntityName(outername)))
                         val packageResource = Resource(ns, Collection(Collection.PACKAGES), Some(outername))
                         m match {
-                            case GET | POST =>
+                            case GET =>
                                 // need to merge package with action, hence authorize subject for package
                                 // access (if binding, then subject must be authorized for both the binding
                                 // and the referenced package)
@@ -168,11 +168,22 @@ trait WhiskActionsApi extends WhiskCollectionAPI {
                                 // NOTE: it is an error if either the package or the action does not exist,
                                 // the former manifests as unauthorized and the latter as not found
                                 //
-                                // a GET (READ) and POST (ACTIVATE) resolve to a READ right on the package;
-                                // it may be desirable to separate these but currently the PACKAGES collection
-                                // does not allow ACTIVATE since it does not make sense to activate a package
-                                // but rather an action in the package
+                                // before introducing sequences as first class, GET (READ) and POST (ACTIVATE)
+                                // implied checking the READ right on the package
+                                // with sequences in place, the two are split and the package check is pushed inside the action check
                                 authorizeAndContinue(Privilege.READ, user, packageResource, next = () => {
+                                    getEntity(WhiskPackage, entityStore, packageDocId, Some {
+                                        mergeActionWithPackageAndDispatch(m, user, EntityName(innername)) _
+                                    })
+                                })
+                            case POST =>
+                                // this is an activate on an action within a package
+                                // need to check rights for the action:
+                                // 1. checks read rights for package
+                                // 2. if sequence, check rigths for all composing actions
+                                val actionPath = ns.addpath(EntityName(outername))
+                                val actionResource = Resource(actionPath, Collection(Collection.ACTIONS), Some(innername))
+                                authorizeAndContinue(Privilege.ACTIVATE, user, actionResource, next = () => {
                                     getEntity(WhiskPackage, entityStore, packageDocId, Some {
                                         mergeActionWithPackageAndDispatch(m, user, EntityName(innername)) _
                                     })
