@@ -20,6 +20,7 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import whisk.common.TransactionId
 import whisk.core.controller.RejectRequest
+import whisk.core.database.NoDocumentException
 import whisk.core.entity.SequenceExec
 import whisk.core.entity.WhiskAction
 import whisk.core.entity.types.EntityStore
@@ -28,6 +29,7 @@ import whisk.core.entity.EntityPath
 import whisk.core.entity.FullyQualifiedEntityName
 
 import spray.http.StatusCodes.MethodNotAllowed
+import spray.http.StatusCodes.NotFound
 
 import Privilege.Privilege
 
@@ -75,18 +77,24 @@ protected[core] class ActionCollection(entityStore: EntityStore) extends Collect
                                 // check all rights are true
                                 compRights map { seq => seq.forall(_ == true) }
                             case _ => // this is not a sequence, defer to super
-                                val actionResource = Resource(action.path, Collection(Collection.ACTIONS), Some(action.name.name))
-                                info(this, s"Check right $right for an atomic action $action $actionResource")
+                                info(this, s"Check right $right for an atomic action $action")
                                 // TODO: does it make a difference if this action is in a default package or not?
-                                super.implicitRights(namespaces, right, actionResource)
+                                if (action.path.defaultPackage) {
+                                    val actionResource = Resource(action.path, Collection(Collection.ACTIONS), Some(action.name.name))
+                                    super.implicitRights(namespaces, right, actionResource)
+                                } else {
+                                    // this is an action in a package for which the READ rights were checked
+                                    Future.successful(true)
+                                }
                         }
-                    } // is it ok to fail this here with doc not found and resurface the failure?
+                    }
                 } else {
                     // read on package not allowed
                     Future.successful(false)
                 }
             }
-
+        } recoverWith {
+            case t: NoDocumentException => Future.failed(RejectRequest(NotFound))
         }
     }
 
