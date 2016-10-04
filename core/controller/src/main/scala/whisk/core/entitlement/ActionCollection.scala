@@ -24,6 +24,7 @@ import whisk.core.entity.SequenceExec
 import whisk.core.entity.WhiskAction
 import whisk.core.entity.types.EntityStore
 import whisk.core.entity.EntityName
+import whisk.core.entity.EntityPath
 import whisk.core.entity.FullyQualifiedEntityName
 
 import spray.http.StatusCodes.MethodNotAllowed
@@ -61,13 +62,8 @@ protected[core] class ActionCollection(entityStore: EntityStore) extends Collect
         implicit ec: ExecutionContext, transid: TransactionId): Future[Boolean] = {
         WhiskAction.resolveAction(entityStore, entity) flatMap { action =>
             info(this, s"Checking right $right for a resolved action $action")
-            // first check READ rights on the package
-            // irrespective of $right requested, READ on package is required
-            val packageResource = Resource(entity.path.root, Collection(Collection.PACKAGES), Some(entity.path.last.name))
-            // irrespective of right, one needs READ right on the package
-            val packageRightFuture = packageResource.collection.implicitRights(namespaces, Privilege.READ, packageResource)
-            // check if the action is a sequence
-            packageRightFuture flatMap { packageRight =>
+            // irrespective of the right requested, READ right on package (if any) is required
+            checkPackageReadRights(namespaces, entity.path) flatMap { packageRight =>
                 if (packageRight) {
                     WhiskAction.get(entityStore, action.toDocId) flatMap { wskaction =>
                         wskaction.exec match {
@@ -91,6 +87,21 @@ protected[core] class ActionCollection(entityStore: EntityStore) extends Collect
                 }
             }
 
+        }
+    }
+
+    /**
+     * check package read rights, if the package exists, otherwise return true
+     */
+    private def checkPackageReadRights(namespaces: Set[String], entityPath: EntityPath)(
+        implicit ec: ExecutionContext, transid: TransactionId): Future[Boolean] = {
+        if (entityPath.defaultPackage) {
+            // no package to check
+            Future.successful(true)
+        } else {
+            val packageResource = Resource(entityPath.root, Collection(Collection.PACKAGES), Some(entityPath.last.name))
+            // irrespective of right, one needs READ right on the package
+            packageResource.collection.implicitRights(namespaces, Privilege.READ, packageResource)
         }
     }
 }
