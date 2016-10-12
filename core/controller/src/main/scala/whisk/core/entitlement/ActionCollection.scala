@@ -51,7 +51,7 @@ protected[core] class ActionCollection(entityStore: EntityStore) extends Collect
             } getOrElse {
                 // this means there is no entity, invoke on a collection without an entity
                 // it really shouldn't get here, this request should be rejected earlier
-                // TODO: shall we throw a RuntimeException to know that it shouldn't have gotten here?
+                // TODO: shall we log an error since this request should have been rejected earlier?
                 Future.failed(RejectRequest(MethodNotAllowed))
             }
         }
