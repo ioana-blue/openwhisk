@@ -31,11 +31,8 @@ import whisk.core.entitlement.Privilege.PUT
 import whisk.core.entitlement.Privilege.READ
 import whisk.core.entitlement.Privilege.REJECT
 import whisk.core.entitlement.Resource
-import whisk.core.entity.Subject
-import whisk.core.entity.AuthKey
+import whisk.core.entity._
 import whisk.core.entitlement.Privilege
-import whisk.core.entity.EntityName
-import whisk.core.entity.Identity
 import whisk.core.entitlement.OperationNotAllowed
 
 /**
@@ -62,13 +59,21 @@ class AuthorizeTests extends ControllerTestCommon with Authenticate {
 
     it should "authorize a user to only read from their collection" in {
         implicit val tid = transid()
-        val collections = Seq(ACTIONS, RULES, TRIGGERS, PACKAGES, ACTIVATIONS, NAMESPACES)
+        val collections = Seq(RULES, TRIGGERS, PACKAGES, ACTIVATIONS, NAMESPACES)
         val resources = collections map { Resource(someUser.namespace.toPath, _, None) }
         resources foreach { r =>
             Await.result(entitlementService.check(someUser, READ, r), requestTimeout) should be(true)
             Await.result(entitlementService.check(someUser, PUT, r), requestTimeout) should be(false)
             Await.result(entitlementService.check(someUser, DELETE, r), requestTimeout) should be(false)
-            Await.result(entitlementService.check(someUser, ACTIVATE, r), requestTimeout) should be(false)
+            // for activate/invoke on actions, a reject request is thrown
+            r match {
+                case Resource(_, ACTIONS, None, _) =>
+                    a[RejectRequest] should be thrownBy {
+                        Await.result(entitlementService.check(someUser, ACTIVATE, r), requestTimeout)
+                    }
+                case _ =>
+                    Await.result(entitlementService.check(someUser, ACTIVATE, r), requestTimeout) should be(false)
+            }
             Await.result(entitlementService.check(someUser, REJECT, r), requestTimeout) should be(false)
         }
     }
@@ -85,7 +90,15 @@ class AuthorizeTests extends ControllerTestCommon with Authenticate {
             Await.result(entitlementService.check(guestUser, READ, r), requestTimeout) should be(r.collection == PACKAGES)
             Await.result(entitlementService.check(guestUser, PUT, r), requestTimeout) should be(false)
             Await.result(entitlementService.check(guestUser, DELETE, r), requestTimeout) should be(false)
-            Await.result(entitlementService.check(guestUser, ACTIVATE, r), requestTimeout) should be(false)
+            // for activate/invoke on actions, a reject request is thrown
+            r match {
+                case Resource(_, ACTIONS, None, _) =>
+                    a[RejectRequest] should be thrownBy {
+                        Await.result(entitlementService.check(guestUser, ACTIVATE, r), requestTimeout)
+                    }
+                case _ =>
+                    Await.result(entitlementService.check(guestUser, ACTIVATE, r), requestTimeout) should be(false)
+            }
             Await.result(entitlementService.check(guestUser, REJECT, r), requestTimeout) should be(false)
         }
     }
@@ -94,7 +107,11 @@ class AuthorizeTests extends ControllerTestCommon with Authenticate {
         implicit val tid = transid()
         // packages are tested separately
         val collections = Seq(ACTIONS, RULES, TRIGGERS)
-        val resources = collections map { Resource(someUser.namespace.toPath, _, Some("xyz")) }
+        val aName = "xyz"
+        val resources = collections map { Resource(someUser.namespace.toPath, _, Some(aName)) }
+        // install the action in the db such that it is found (otherwise, a RejectRequest with NotFound is thrown)
+        val anAction = WhiskAction(EntityPath(someUser.namespace.name), EntityName(aName), Exec.js("??"))
+        put(entityStore, anAction)
         resources foreach { r =>
             Await.result(entitlementService.check(someUser, READ, r), requestTimeout) should be(true)
             Await.result(entitlementService.check(someUser, PUT, r), requestTimeout) should be(true)
@@ -108,7 +125,11 @@ class AuthorizeTests extends ControllerTestCommon with Authenticate {
         val subject = Subject()
         val someUser = Identity(subject, EntityName(subject()), AuthKey(), Set(Privilege.ACTIVATE))
         val collections = Seq(ACTIONS, RULES, TRIGGERS)
-        val resources = collections map { Resource(someUser.namespace.toPath, _, Some("xyz")) }
+        val aName = "xyz"
+        val resources = collections map { Resource(someUser.namespace.toPath, _, Some(aName)) }
+        // install the action in the db such that it is found (otherwise, a RejectRequest with NotFound is thrown)
+        val anAction = WhiskAction(EntityPath(someUser.namespace.name), EntityName(aName), Exec.js("??"))
+        put(entityStore, anAction)
         resources foreach { r =>
             an[OperationNotAllowed] should be thrownBy {
                 Await.result(entitlementService.check(someUser, READ, r), requestTimeout)
@@ -138,7 +159,11 @@ class AuthorizeTests extends ControllerTestCommon with Authenticate {
     it should "not authorize a user to CRUD or activate an entity in someone else's collection" in {
         implicit val tid = transid()
         val collections = Seq(ACTIONS, RULES, TRIGGERS, PACKAGES)
-        val resources = collections map { Resource(someUser.namespace.toPath, _, Some("xyz")) }
+        val aName = "xyz"
+        val resources = collections map { Resource(someUser.namespace.toPath, _, Some(aName)) }
+        // install the action in the db such that it is found (otherwise, a RejectRequest with NotFound is thrown)
+        val anAction = WhiskAction(EntityPath(someUser.namespace.name), EntityName(aName), Exec.js("??"))
+        put(entityStore, anAction)
         resources foreach { r =>
             Await.result(entitlementService.check(guestUser, READ, r), requestTimeout) should be(false)
             Await.result(entitlementService.check(guestUser, PUT, r), requestTimeout) should be(false)
