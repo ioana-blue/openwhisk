@@ -128,6 +128,45 @@ protected trait ControllerTestCommon
 
     def stringToFullyQualifiedName(s: String) = FullyQualifiedEntityName.serdes.read(JsString(s))
 
+    /**
+     * Makes a simple sequence action and installs it in the db (no call to wsk api/cli).
+     * All actions are in the default package.
+     *
+     * @param sequenceName the name of the sequence
+     * @param ns the namespace to be used when creating the component actions and the sequence action
+     * @param components the names of the actions (entity names, no namespace)
+     */
+    def putSimpleSequenceInDB(sequenceName: String, ns: EntityPath, components: Vector[String])(
+        implicit tid: TransactionId) = {
+        val seqAction = makeSimpleSequence(sequenceName, ns, components)
+        put(entityStore, seqAction)
+    }
+
+    /**
+     * Returns a WhiskAction that can be used to create/update a sequence.
+     * If instructed to do so, installs the component actions in the db.
+     * All actions are in the default package.
+     *
+     * @param sequenceName the name of the sequence
+     * @param ns the namespace to be used when creating the component actions and the sequence action
+     * @param componentNames the names of the actions (entity names, no namespace)
+     * @param installDB if true, installs the component actions in the db (default true)
+     */
+    def makeSimpleSequence(sequenceName: String, ns: EntityPath, componentNames: Vector[String], installDB: Boolean = true)(
+        implicit tid: TransactionId): WhiskAction = {
+        if (installDB) {
+            // create bogus wsk actions
+            val wskActions = componentNames.toSet[String] map { c => WhiskAction(ns, EntityName(c), Exec.js("??")) }
+            // add them to the db
+            wskActions.foreach { put(entityStore, _) }
+        }
+        // add namespace to component names
+        val components = componentNames map { c => s"/$ns/$c" }
+        // create wsk action for the sequence
+        val fqenComponents = components map { c => stringToFullyQualifiedName(c) }
+        WhiskAction(ns, EntityName(sequenceName), Exec.sequence(fqenComponents))
+    }
+
     object MakeName {
         @volatile var counter = 1
         def next(prefix: String = "test")(): EntityName = {
