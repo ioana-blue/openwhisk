@@ -33,16 +33,7 @@ import spray.json.DefaultJsonProtocol._
 import spray.json._
 import whisk.common.TransactionId
 import whisk.core.controller.WhiskActionsApi
-import whisk.core.entity.AuthKey
-import whisk.core.entity.EntityName
-import whisk.core.entity.EntityPath
-import whisk.core.entity.Exec
-import whisk.core.entity.Parameters
-import whisk.core.entity.Subject
-import whisk.core.entity.WhiskAction
-import whisk.core.entity.WhiskActionPut
-import whisk.core.entity.WhiskAuth
-import whisk.core.entity.WhiskPackage
+import whisk.core.entity._
 import whisk.http.Messages._
 
 /**

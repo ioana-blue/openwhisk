@@ -143,9 +143,24 @@ protected trait ControllerTestCommon
     }
 
     /**
+     * Makes a simple sequence action and installs it in the db (no call to wsk api/cli).
+     * All actions are in the default package.
+     *
+     * @param sequenceName the name of the sequence
+     * @param nsSeq the namespace to be used when creating the sequence action
+     * @param components the names of the actions (entity names, no namespace)
+     * @param componentNs the namespaces to be used for components
+     */
+    def putSimpleSequenceInDBWithNamespaces(sequenceName: String, ns: EntityPath, components: Vector[String], componentNs: Vector[EntityPath])(
+        implicit tid: TransactionId) = {
+        val seqAction = makeSimpleSequenceWithNamespaces(sequenceName, ns, components, componentNs)
+        put(entityStore, seqAction)
+    }
+
+    /**
      * Returns a WhiskAction that can be used to create/update a sequence.
      * If instructed to do so, installs the component actions in the db.
-     * All actions are in the default package.
+     * All actions are in the default package. Same namespace is used for components and sequence.
      *
      * @param sequenceName the name of the sequence
      * @param ns the namespace to be used when creating the component actions and the sequence action
@@ -154,17 +169,42 @@ protected trait ControllerTestCommon
      */
     def makeSimpleSequence(sequenceName: String, ns: EntityPath, componentNames: Vector[String], installDB: Boolean = true)(
         implicit tid: TransactionId): WhiskAction = {
+        // create the vector of namespaces
+        val componentNs = Vector.fill(componentNames.size)(ns)
+        makeSimpleSequenceWithNamespaces(sequenceName, ns, componentNames, componentNs, installDB)
+    }
+
+    /**
+     * Returns a WhiskAction that can be used to create/update a sequence.
+     * If instructed to do so, installs the component actions in the db.
+     * All actions are in the default package. The namespaces for the sequence and the components are provided.
+     *
+     * @param sequenceName the name of the sequence
+     * @param nsSeq the namespace to be used when creating the component actions and the sequence action
+     * @param componentNames the names of the actions (entity names, no namespace)
+     * @param componentNs the namespaces to be used for components
+     * @param installDB if true, installs the component actions in the db (default true)
+     */
+    def makeSimpleSequenceWithNamespaces(sequenceName: String, nsSeq: EntityPath, componentNames: Vector[String], componentNs: Vector[EntityPath], installDB: Boolean = true)(
+        implicit tid: TransactionId): WhiskAction = {
+        assert(componentNames.size == componentNs.size)
+        val wskActionsNsNamePair = componentNs.zip(componentNames.map(EntityName(_)))
+
         if (installDB) {
             // create bogus wsk actions
-            val wskActions = componentNames.toSet[String] map { c => WhiskAction(ns, EntityName(c), Exec.js("??")) }
+            val wskActions = wskActionsNsNamePair.toSet[(EntityPath, EntityName)] map { pair =>
+                WhiskAction(pair._1, pair._2, Exec.js("??")) }
             // add them to the db
             wskActions.foreach { put(entityStore, _) }
         }
         // add namespace to component names
-        val components = componentNames map { c => s"/$ns/$c" }
+        //val components = componentNames map { c => s"/$ns/$c" }
+        val components = wskActionsNsNamePair map { pair =>
+            s"/${pair._1}/${pair._2}"
+        }
         // create wsk action for the sequence
-        val fqenComponents = components map { c => stringToFullyQualifiedName(c) }
-        WhiskAction(ns, EntityName(sequenceName), Exec.sequence(fqenComponents))
+        val fqenComponents = components.toVector map { c => stringToFullyQualifiedName(c) }
+        WhiskAction(nsSeq, EntityName(sequenceName), Exec.sequence(fqenComponents))
     }
 
     object MakeName {

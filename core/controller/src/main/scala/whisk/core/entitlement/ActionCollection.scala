@@ -81,6 +81,7 @@ protected[core] class ActionCollection(entityStore: EntityStore) extends Collect
                                 // TODO: does it make a difference if this action is in a default package or not?
                                 if (action.path.defaultPackage) {
                                     val actionResource = Resource(action.path, Collection(Collection.ACTIONS), Some(action.name.name))
+                                    info(this, s"Namespaces $namespaces path ${action.path}")
                                     super.implicitRights(namespaces, right, actionResource)
                                 } else {
                                     // this is an action in a package for which the READ rights were checked
