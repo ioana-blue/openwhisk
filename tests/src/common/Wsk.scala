@@ -802,14 +802,17 @@ sealed trait RunWskCmd extends Matchers {
      */
     def cli(params: Seq[String],
             expectedExitCode: Int = SUCCESS_EXIT,
-            verbose: Boolean = false,
+            verbose: Boolean = true,
             env: Map[String, String] = Map[String, String](),
             workingDir: File = new File("."),
-            showCmd: Boolean = false): RunResult = {
+            showCmd: Boolean = true): RunResult = {
         val args = baseCommand
         if (verbose) args += "--verbose"
         if (showCmd) println(args.mkString(" ") + " " + params.mkString(" "))
+        args += "-d"
         val rr = TestUtils.runCmd(DONTCARE_EXIT, workingDir, TestUtils.logger, sys.env ++ env, args ++ params: _*)
+
+        println(rr)
 
         withClue(reportFailure(args ++ params, expectedExitCode, rr)) {
             if (expectedExitCode != TestUtils.DONTCARE_EXIT) {
